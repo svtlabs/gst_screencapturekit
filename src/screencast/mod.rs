@@ -4,7 +4,7 @@ use gst::prelude::*;
 mod imp;
 mod memory;
 mod allocator;
-mod buffer;
+mod media_meta;
 // The public Rust wrapper type for our element
 glib::wrapper! {
     pub struct ScreenCaptureSrc(ObjectSubclass<imp::ScreenCaptureSrc>) @extends gst_base::PushSrc, gst_base::BaseSrc, gst::Element, gst::Object;

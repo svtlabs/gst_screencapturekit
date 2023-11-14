@@ -20,26 +20,26 @@ pub struct AppleVideoMemory {
     pub(crate) plane_index: u64,
 }
 
-
 pub(crate) unsafe extern "C" fn mem_map(
     mem: *mut GstMemory,
     _size: usize,
     _flags: u32,
 ) -> gpointer {
     let gmem = ptr::read(mem as *mut AppleVideoMemory);
-    let pxbuf = gmem.cm_sample_buf.pixel_buffer;
-    if pxbuf.lock() {
-        return if pxbuf.is_planar {
-            pxbuf.get_base_adress_of_plane(gmem.plane_index)
-        } else {
-            pxbuf.get_base_adress()
-        };
+    if let Some(pxbuf) = gmem.cm_sample_buf.pixel_buffer {
+        if pxbuf.lock() {
+            return if pxbuf.is_planar {
+                pxbuf.get_base_adress_of_plane(gmem.plane_index)
+            } else {
+                pxbuf.get_base_adress()
+            };
+        }
     }
     ptr::null_mut()
 }
 pub(crate) unsafe extern "C" fn mem_unmap(mem: *mut GstMemory) {
     let gmem = ptr::read(mem as *mut AppleVideoMemory);
-    gmem.cm_sample_buf.pixel_buffer.unlock();
+    gmem.cm_sample_buf.pixel_buffer.expect("should have pixel_buffer").unlock();
 }
 pub(crate) unsafe extern "C" fn mem_share(
     _mem: *mut GstMemory,

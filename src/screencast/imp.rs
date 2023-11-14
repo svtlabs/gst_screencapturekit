@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use std::ops::Deref;
 use std::sync::mpsc::SyncSender;
 use std::sync::Mutex;
 
@@ -16,6 +17,9 @@ use screencapturekit::sc_output_handler::{SCStreamOutputType, StreamOutput};
 use screencapturekit::sc_shareable_content::SCShareableContent;
 use screencapturekit::sc_stream::SCStream;
 use screencapturekit::sc_stream_configuration::{PixelFormat, SCStreamConfiguration};
+use screencapturekit::sc_types::sc_stream_frame_info::SCFrameStatus;
+
+use crate::screencast::media_meta::CoreMediaMeta;
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
         "screencapture",
@@ -96,12 +100,14 @@ impl StreamOutput for StreamProducer {
         sample_buffer: CMSampleBuffer,
         _of_type: SCStreamOutputType,
     ) {
-        let _ = self.sender.send(sample_buffer).map_err(|_| {
-            error_msg!(
-                gst::ResourceError::Failed,
-                ("Failed to send Samplebuffer through sync channel")
-            )
-        });
+        if let SCFrameStatus::Complete = sample_buffer.frame_status {
+            let _ = self.sender.send(sample_buffer).map_err(|_| {
+                error_msg!(
+                    gst::ResourceError::Failed,
+                    ("Failed to send Samplebuffer through sync channel")
+                )
+            });
+        }
     }
 }
 struct StreamErr;
@@ -240,32 +246,16 @@ impl BaseSrcImpl for ScreenCaptureSrc {
     }
 
     fn unlock(&self) -> Result<(), gst::ErrorMessage> {
-        // [bufQueueLock lock];
-        //   stopRequest = YES;
-        //   [bufQueueLock unlockWithCondition:HAS_BUFFER_OR_STOP_REQUEST];
-        //
-        //   [permissionCond lock];
-        //   permissionStopRequest = YES;
-        //   [permissionCond broadcast];
-        //   [permissionCond unlock];
-        //
-        //   return YES;
-        //
+        let state = self.state.lock().expect("could not obtain lock");
+        let stream = state.stream.as_ref().ok_or(error_msg!(
+            gst::StreamError::Failed,
+            ["Could not get stream"]
+        ))?;
+        stream.stop_capture();
         Ok(())
     }
 
     fn unlock_stop(&self) -> Result<(), gst::ErrorMessage> {
-        //   [bufQueueLock lock];
-        // stopRequest = NO;
-        // [bufQueueLock unlockWithCondition:([bufQueue count] == 0) ? NO_BUFFERS : HAS_BUFFER_OR_STOP_REQUEST];
-        //
-        // [permissionCond lock];
-        // permissionStopRequest = NO;
-        // [permissionCond unlock];
-        //
-        // return YES;
-        //
-
         Ok(())
     }
 }
@@ -348,15 +338,16 @@ impl PushSrcImpl for ScreenCaptureSrc {
         //     gst::Buffer::from_glib_full(b)
         // };
 
+        let mut buf = gst::Buffer::new();
         {
-            // let buf = buf.get_mut().unwrap();
-            // buf.set_pts(ClockTime::from_nseconds(
-            //     sample.presentation_timestamp.value as u64,
-            // ));
+            let buf_ref = buf.get_mut().unwrap();
+            buf_ref.set_pts(ClockTime::from_nseconds(
+                sample.presentation_timestamp.value as u64,
+            ));
+            CoreMediaMeta::add(buf_ref, sample);
         };
-
-        // gst::info!(CAT, imp: self, "BUFFER {:?}", buf);
-        // Ok(CreateSuccess::NewBuffer(buf))
-        Ok(CreateSuccess::FilledBuffer)
+        gst::info!(CAT, imp: self, "BUFFER {:?}", buf);
+        Ok(CreateSuccess::NewBuffer(buf))
+        // Ok(CreateSuccess::FilledBucfer)
     }
 }
