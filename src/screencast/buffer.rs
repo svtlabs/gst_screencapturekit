@@ -1,4 +1,5 @@
 use gst_video::VideoFormat;
+use screencapturekit::{sc_types::four_char_code::FourCharCode, cm_sample_buffer::CMSampleBuffer};
 
 
 
@@ -12,6 +13,17 @@ fn apple_format_to_gst_format(raw_code: u32) -> VideoFormat {
         _ => VideoFormat::Unknown,
     }
 }
+  
+
+
+fn new_media_buffer (sample_buf: CMSampleBuffer) -> gst::Buffer {
+   let buffer = gst::Buffer::new();
+  
+    
+}
+
+
+
 
 // fn core_media_buffer_new(sample_buf: CMSampleBuffer) -> gst::Buffer {
 //     todo!();
