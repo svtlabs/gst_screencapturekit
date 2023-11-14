@@ -19,7 +19,7 @@ impl CoreMediaMeta {
         unsafe {
             // Manually dropping because gst_buffer_add_meta() takes ownership of the
             // content of the struct.
-            let mut params = mem::ManuallyDrop::new(imp::CoreMediaMetaParams { sample_buf });
+            let mut params = mem::ManuallyDrop::new(imp::CoreMediaMetaParams { sample_buf: Some(sample_buf) });
 
             let meta = gst::ffi::gst_buffer_add_meta(
                 buffer.as_mut_ptr(),
@@ -49,8 +49,7 @@ impl fmt::Debug for CoreMediaMeta {
 
 // Actual unsafe implementation of the meta.
 mod imp {
-    use std::ffi::{c_void, c_char};
-    use std::ops::Deref;
+    use std::ffi::{c_char, c_void};
     use std::{mem, ptr};
 
     use glib::once_cell::sync::Lazy;
@@ -61,14 +60,14 @@ mod imp {
     use screencapturekit::cm_sample_buffer::CMSampleBuffer;
 
     pub(super) struct CoreMediaMetaParams {
-        pub sample_buf: CMSampleBuffer,
+        pub sample_buf: Option<CMSampleBuffer>,
     }
 
     // This is the C type that is actually stored as meta inside the buffers.
     #[repr(C)]
     pub struct CoreMediaMeta {
         parent: gst::ffi::GstMeta,
-        pub rich_buff: CMSampleBuffer,
+        pub rich_buff: *mut CMSampleBuffer,
         pub sample_buf: gpointer,
         pub image_buf: gpointer,
         pub pixel_buf: gpointer,
@@ -80,7 +79,8 @@ mod imp {
         static TYPE: Lazy<glib::Type> = Lazy::new(|| unsafe {
             let t = from_glib(gst::ffi::gst_meta_api_type_register(
                 b"GstCoreMediaMetaAPI\0".as_ptr() as *const _,
-                [b"memory\0".as_ptr() as *const c_char, ptr::null::<c_char>()].as_ptr() as *mut *const _,
+                [b"memory\0".as_ptr() as *const c_char, ptr::null::<c_char>()].as_ptr()
+                    as *mut *const _,
             ));
 
             assert_ne!(t, glib::Type::INVALID);
@@ -101,24 +101,22 @@ mod imp {
         assert!(!params.is_null());
 
         let meta = &mut *(meta as *mut CoreMediaMeta);
-        let params = mem::ManuallyDrop::new(ptr::read(params as *const CoreMediaMetaParams));
+        let mut params = ptr::read(params as *mut CoreMediaMetaParams);
+        let sample_buf = params.sample_buf.take().expect("took option");
         // Need to initialize all our fields correctly here.
-        let s = params.sample_buf.clone();
-        let sample_buf = s.sys_ref;
-        let image_buf = s.image_buf_ref;
         ptr::write(
             &mut meta.sample_buf,
-            sample_buf.deref() as *const _ as *mut c_void,
+            &*sample_buf.sys_ref as *const _ as *mut _,
         );
-        if let Some(ptr) = image_buf {
-            ptr::write(&mut meta.image_buf, ptr.deref() as *const _ as *mut c_void);
-            ptr::write(
-                &mut meta.pixel_buf,
-                s.pixel_buffer.unwrap().sys_ref.deref() as *const _ as *mut c_void,
-            );
+        if let Some(ptr) = sample_buf.get_image_buffer() {
+            ptr::write(&mut meta.image_buf, &*ptr as *const _ as *mut c_void);
+        }
+        if let Some(ptr) = sample_buf.get_pixel_buffer() {
+            ptr::write(&mut meta.pixel_buf, &*ptr.sys_ref as *const _ as *mut c_void);
         }
         ptr::write(&mut meta.block_buf, ptr::null_mut());
-
+        meta.rich_buff = &sample_buf as *const _ as *mut _;
+    
         true.into_glib()
     }
 
@@ -130,7 +128,9 @@ mod imp {
         let meta = &mut *(meta as *mut CoreMediaMeta);
 
         // Need to free/drop all our fields here.
-        //ptr::drop_in_place(&mut meta.sample_buf);
+        ptr::drop_in_place(&mut meta.pixel_buf);
+        ptr::drop_in_place(&mut meta.sample_buf);
+        ptr::drop_in_place(&mut meta.rich_buff);
     }
 
     // Transform function for our meta. This needs to get it from the old buffer to the new one
@@ -148,11 +148,11 @@ mod imp {
         if (*(data as *mut GstMetaTransformCopy)).region != true.into_glib() {
             // We simply copy over our meta here. Other metas might have to look at the type
             // and do things conditional on that, or even just drop the meta.
-            let sys_ref = meta.rich_buff.sys_ref;
+            let sys_ref: *mut CMSampleBuffer = mem::replace(meta.rich_buff, ptr::null_mut());
 
             super::CoreMediaMeta::add(
                 gst::BufferRef::from_mut_ptr(dest),
-                CMSampleBuffer::new(sys_ref),
+                *sys_ref,
             );
         }
 

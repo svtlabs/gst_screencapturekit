@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-use std::ops::Deref;
 use std::sync::mpsc::SyncSender;
 use std::sync::Mutex;
 

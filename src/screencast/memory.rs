@@ -25,8 +25,8 @@ pub(crate) unsafe extern "C" fn mem_map(
     _size: usize,
     _flags: u32,
 ) -> gpointer {
-    let gmem = ptr::read(mem as *mut AppleVideoMemory);
-    if let Some(pxbuf) = gmem.cm_sample_buf.pixel_buffer {
+    let gmem = &mut *(mem as *mut AppleVideoMemory);
+    if let Some(pxbuf) = gmem.cm_sample_buf.get_pixel_buffer() {
         if pxbuf.lock() {
             return if pxbuf.is_planar {
                 pxbuf.get_base_adress_of_plane(gmem.plane_index)
@@ -38,8 +38,12 @@ pub(crate) unsafe extern "C" fn mem_map(
     ptr::null_mut()
 }
 pub(crate) unsafe extern "C" fn mem_unmap(mem: *mut GstMemory) {
-    let gmem = ptr::read(mem as *mut AppleVideoMemory);
-    gmem.cm_sample_buf.pixel_buffer.expect("should have pixel_buffer").unlock();
+    let gmem = &mut *(mem as *mut AppleVideoMemory);
+    let px_buf = gmem
+        .cm_sample_buf
+        .get_pixel_buffer()
+        .expect("should have pxbuffer");
+    px_buf.unlock();
 }
 pub(crate) unsafe extern "C" fn mem_share(
     _mem: *mut GstMemory,
