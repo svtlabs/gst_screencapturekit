@@ -1,19 +1,17 @@
-// use gst_video::VideoFormat;
-// use screencapturekit::{cm_sample_buffer::CMSampleBuffer, sc_types::four_char_code::FourCharCode};
+use gst_video::VideoFormat;
 
 
 
-//
-// fn apple_format_to_gst_format(raw_code: u32) -> VideoFormat {
-//     let str = FourCharCode::from_int(raw_code).to_string();
-//     match str.as_str() {
-//         "BGRA" => VideoFormat::Bgra,
-//         "l10r" => VideoFormat::Gbra10le,
-//         "420v" => VideoFormat::Nv12,
-//         "420f" => VideoFormat::Nv12,
-//         _ => VideoFormat::Unknown,
-//     }
-// }
+fn apple_format_to_gst_format(raw_code: u32) -> VideoFormat {
+    let str = FourCharCode::from_int(raw_code).to_string();
+    match str.as_str() {
+        "BGRA" => VideoFormat::Bgra,
+        "l10r" => VideoFormat::Gbra10le,
+        "420v" => VideoFormat::Nv12,
+        "420f" => VideoFormat::Nv12,
+        _ => VideoFormat::Unknown,
+    }
+}
 
 // fn core_media_buffer_new(sample_buf: CMSampleBuffer) -> gst::Buffer {
 //     todo!();
