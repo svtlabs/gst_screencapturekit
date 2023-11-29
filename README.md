@@ -19,7 +19,12 @@ INSTALLATION TBD
 
 ## License(s)
 
-This project is dual licenced under MIT & Apache 2.0.
+Licensed under either of
+
+- Apache License, Version 2.0 [LICENSE-APACHE](LICENSE-APACHE)
+- MIT license [LICENSE-MIT](LICENSE-MIT)
+
+at your option.
 
 ## Contributing
 
