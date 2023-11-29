@@ -12,8 +12,7 @@ On macOS, you can install GStreamer and the plugins via Homebrew, or by installi
 
 ```bash
 $ brew install gstreamer gst-plugins-base gst-plugins-good \
-      gst-plugins-bad gst-plugins-ugly gst-libav gst-rtsp-server \
-      gst-editing-services
+      gst-plugins-bad gst-plugins-ugly
 ```
 
 
